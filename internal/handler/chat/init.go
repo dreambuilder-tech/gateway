@@ -1,8 +1,8 @@
 package chat
 
 import (
-	"gateway/internal/app"
 	"gateway/internal/common/auth"
+	"wallet/common-lib/app"
 	"wallet/common-lib/rpcx/contracts"
 	"wallet/common-lib/rpcx/im_rpcx"
 
@@ -33,5 +33,5 @@ func Init(c *gin.Context) {
 		app.InvalidParams(c, err.Error())
 		return
 	}
-	app.SuccessData(c, resp)
+	app.Result(c, resp)
 }

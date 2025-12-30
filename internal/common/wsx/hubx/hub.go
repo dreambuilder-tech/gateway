@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"time"
+	"wallet/common-lib/natsx"
+	"wallet/common-lib/natsx/event"
 	wsproto "wallet/common-lib/wsx/proto"
 	"wallet/common-lib/zapx"
 
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
 	"github.com/olahol/melody"
-	"github.com/spf13/cast"
 	"go.uber.org/zap"
 )
 
@@ -78,6 +79,11 @@ func (h *Hub) Unsubscribe(s *melody.Session, memberID int64, topics ...string) {
 	}
 }
 
+func (h *Hub) SubscribeNatsTopic(subject event.Subject) {
+	sub := natsx.NewSubscriber("", subject, h.HandleNats)
+	sub.Subscribe()
+}
+
 func (h *Hub) HandleNats(m *nats.Msg) {
 	p := new(wsproto.PushMsg)
 	if err := json.Unmarshal(m.Data, p); err != nil {
@@ -116,12 +122,23 @@ func (h *Hub) Push(m *wsproto.PushMsg, s *melody.Session) {
 				h.logger.Error("session write error", zap.Error(err))
 			}
 		}
-	case wsproto.TargetUID:
-		memberID := cast.ToInt64(m.TargetV)
-		h.pushToUID(memberID, body)
+	case wsproto.TargetMember:
+		memberID, ok := m.TargetV.(int64)
+		if ok {
+			h.pushToUID(memberID, body)
+		}
+	case wsproto.TargetMembers:
+		memberIds, ok := m.TargetV.([]int64)
+		if ok {
+			for _, v := range memberIds {
+				h.pushToUID(v, body)
+			}
+		}
 	case wsproto.TargetTopic:
-		topic := cast.ToString(m.TargetV)
-		h.pushToTopic(topic, body)
+		topic, ok := m.TargetV.(string)
+		if ok {
+			h.pushToTopic(topic, body)
+		}
 	default:
 		h.logger.Error("unsupported target", zap.Any("target", m.TargetK))
 	}

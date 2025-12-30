@@ -1,10 +1,12 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
-	"gateway/internal/app"
 	"gateway/internal/common/auth"
 	"gateway/internal/common/rule"
+	"wallet/common-lib/app"
+	"wallet/common-lib/mw/biz_rule"
 	"wallet/common-lib/utils/rate_limit"
 	"wallet/common-lib/zapx"
 
@@ -13,10 +15,11 @@ import (
 	"go.uber.org/zap"
 )
 
-func GlobalLimiter() gin.HandlerFunc {
+func IPLimiter() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		subject := rateLimitSubject(c)
-		if !checkLimit(c, subject, rule.Tourist) {
+		allow, _ := checkLimit(c.Request.Context(), subject, rule.Tourist)
+		if !allow {
 			app.TooManyRequest(c)
 			return
 		}
@@ -24,27 +27,33 @@ func GlobalLimiter() gin.HandlerFunc {
 	}
 }
 
-func WithLimit(br rule.BizRule) gin.HandlerFunc {
+func WithLimit(br biz_rule.Rule) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		subject := rateLimitSubjectV2(c)
-		if !checkLimit(c, subject, br) {
+		allow, reserved := checkLimit(c.Request.Context(), subject, br)
+		if !allow {
 			app.TooManyRequest(c)
 			return
 		}
 		c.Next()
+		// if it has success limit.
+		if reserved && br.Rule.MaxSuccess > 0 && !app.IsSuccess(c) {
+			// rollback success count.
+			rate_limit.Limiter.RollbackSuccess(c.Request.Context(), subject, br.BizKey)
+		}
 	}
 }
 
-func checkLimit(c *gin.Context, subject string, br rule.BizRule) bool {
+func checkLimit(ctx context.Context, subject string, br biz_rule.Rule) (bool, bool) {
 	if rate_limit.Limiter == nil {
-		return true
+		return true, false
 	}
-	ok, err := rate_limit.Limiter.Allow(c.Request.Context(), subject, br.BizKey, br.Rule)
+	ok, reserved, err := rate_limit.Limiter.Allow(ctx, subject, br.BizKey, br.Rule)
 	if err != nil {
-		zapx.ErrorCtx(c.Request.Context(), "check rate limit error", zap.Error(err))
-		return true
+		zapx.ErrorCtx(ctx, "check rate limit error", zap.Error(err))
+		return true, false
 	}
-	return ok
+	return ok, reserved
 }
 
 func rateLimitSubject(c *gin.Context) string {

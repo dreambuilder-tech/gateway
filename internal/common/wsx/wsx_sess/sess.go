@@ -6,7 +6,7 @@ const key = "session_state"
 
 type ChatInfo struct {
 	PeerIds    map[int64]struct{}
-	LastSendAt int64
+	LastSentAt int64
 }
 
 type SessionState struct {

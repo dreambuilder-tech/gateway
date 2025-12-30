@@ -5,8 +5,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"gateway/internal/app"
 	"time"
+	"wallet/common-lib/app"
 	"wallet/common-lib/rdb"
 	"wallet/common-lib/zapx"
 
@@ -17,6 +17,7 @@ import (
 
 type Member struct {
 	ID       int64  `json:"id"`
+	Account  string `json:"account"`
 	DeviceID string `json:"device_id"`
 	LoginIP  string `json:"login_ip"`
 	LoginAt  int64  `json:"login_at"`
@@ -25,6 +26,7 @@ type Member struct {
 const (
 	SessionHeader     = "X-Session-Id"
 	ReqMemberID       = "memberID"
+	ReqMemberAccount  = "memberAccount"
 	SessionExpireTime = 7 * 24 * time.Hour
 )
 
@@ -47,6 +49,10 @@ func SetSessionID(c *gin.Context, sid string) {
 
 func MemberID(c *gin.Context) int64 {
 	return c.GetInt64(ReqMemberID)
+}
+
+func MemberAccount(c *gin.Context) string {
+	return c.GetString(ReqMemberAccount)
 }
 
 func ParseSessionID(c *gin.Context, sid string) bool {
@@ -76,5 +82,6 @@ func ParseSessionID(c *gin.Context, sid string) bool {
 	}
 	_ = rds.Expire(ctx, sid, SessionExpireTime)
 	c.Set(ReqMemberID, member.ID)
+	c.Set(ReqMemberAccount, member.Account)
 	return true
 }

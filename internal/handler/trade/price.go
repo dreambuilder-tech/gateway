@@ -1,7 +1,7 @@
 package trade
 
 import (
-	"gateway/internal/app"
+	"wallet/common-lib/app"
 	"wallet/common-lib/rpcx/contracts"
 	"wallet/common-lib/rpcx/trade_rpcx"
 
@@ -22,5 +22,5 @@ func GetPrice(c *gin.Context) {
 		return
 	}
 
-	app.SuccessData(c, resp)
+	app.Result(c, resp)
 }

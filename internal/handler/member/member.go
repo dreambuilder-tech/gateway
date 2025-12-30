@@ -2,9 +2,9 @@ package member
 
 import (
 	"encoding/json"
-	"gateway/internal/app"
 	"gateway/internal/common/auth"
 	"time"
+	"wallet/common-lib/app"
 	auth_cst "wallet/common-lib/consts/auth"
 	"wallet/common-lib/rdb"
 	"wallet/common-lib/rpcx/contracts"
@@ -18,6 +18,38 @@ type SendSmsReq struct {
 	Purpose auth_cst.SmsPurpose `json:"purpose"`
 	Area    string              `json:"area"`
 	Number  string              `json:"number"`
+}
+
+type BaseResp struct {
+	Code int         `json:"code"`
+	Msg  string      `json:"msg"`
+	Data interface{} `json:"data"`
+}
+
+type RegisterReq struct {
+	Account  string `json:"account"`
+	Password string `json:"password"`
+	AreaCode string `json:"area_code"`
+	Phone    string `json:"phone"`
+}
+
+type LoginReq struct {
+	Account  string `json:"account"`
+	Password string `json:"password"`
+}
+
+type ResetPwdReq struct {
+	AreaCode string `json:"area_code"`
+	Phone    string `json:"phone"`
+	SMSCode  string `json:"sms_code"`
+	Password string `json:"password"`
+}
+
+type ChangePwdReq struct {
+	Hash     string `json:"hash"`
+	AreaCode string `json:"area_code"`
+	Phone    string `json:"phone"`
+	Password string `json:"password"`
 }
 
 func SendSms(c *gin.Context) {
@@ -39,7 +71,7 @@ func SendSms(c *gin.Context) {
 		app.InternalError(c, err.Error())
 		return
 	}
-	app.SuccessData(c, resp)
+	app.Result(c, resp)
 }
 
 func Register(c *gin.Context) {
@@ -53,7 +85,7 @@ func Register(c *gin.Context) {
 		app.InternalError(c, err.Error())
 		return
 	}
-	app.SuccessData(c, resp)
+	app.Result(c, resp)
 }
 
 func Login(c *gin.Context) {
@@ -68,14 +100,14 @@ func Login(c *gin.Context) {
 		return
 	}
 	if resp.Fail() {
-		app.SuccessData(c, resp)
+		app.Result(c, resp)
 		return
 	}
 	if err = storeSession(c, resp); err != nil {
 		app.InternalError(c, err.Error())
 		return
 	}
-	app.SuccessData(c, resp)
+	app.Result(c, resp)
 }
 
 func ResetPwd(c *gin.Context) {
@@ -93,7 +125,7 @@ func ResetPwd(c *gin.Context) {
 		app.InternalError(c, err.Error())
 		return
 	}
-	app.SuccessData(c, resp)
+	app.Result(c, resp)
 }
 
 func ChangePwd(c *gin.Context) {
@@ -111,7 +143,7 @@ func ChangePwd(c *gin.Context) {
 		app.InternalError(c, err.Error())
 		return
 	}
-	app.SuccessData(c, resp)
+	app.Result(c, resp)
 }
 
 func storeSession(c *gin.Context, m *contracts.MemberLoginResp) error {
@@ -122,6 +154,7 @@ func storeSession(c *gin.Context, m *contracts.MemberLoginResp) error {
 	auth.SetSessionID(c, sid)
 	user := &auth.Member{
 		ID:      m.ID,
+		Account: m.Account,
 		LoginIP: c.ClientIP(),
 		LoginAt: time.Now().Unix(),
 	}

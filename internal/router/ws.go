@@ -2,10 +2,10 @@ package router
 
 import (
 	"errors"
-	"gateway/internal/app"
 	"gateway/internal/common/auth"
 	"gateway/internal/common/ticket"
-	"gateway/internal/handler/ws"
+	"gateway/internal/ws"
+	"wallet/common-lib/app"
 	"wallet/common-lib/rdb"
 	"wallet/common-lib/zapx"
 

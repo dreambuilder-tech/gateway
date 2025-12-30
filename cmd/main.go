@@ -2,18 +2,22 @@ package main
 
 import (
 	"context"
+	"gateway/docs"
 	"gateway/internal/middleware"
 	"gateway/internal/router"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 	"wallet/common-lib/app"
 	"wallet/common-lib/config"
+	"wallet/common-lib/mw"
 	"wallet/common-lib/natsx"
 	"wallet/common-lib/rdb"
 	"wallet/common-lib/rpcx/im_rpcx"
 	"wallet/common-lib/rpcx/kms_rpcx"
 	"wallet/common-lib/rpcx/member_rpcx"
+	"wallet/common-lib/rpcx/merchant_rpcx"
 	"wallet/common-lib/rpcx/trade_rpcx"
 	"wallet/common-lib/rpcx/wallet_rpcx"
 	"wallet/common-lib/utils/rate_limit"
@@ -21,6 +25,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
 	"go.uber.org/zap"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 const (
@@ -35,11 +41,12 @@ func entry(conf *config.BaseConf, svrConf *config.ServiceConfig) func() {
 	rdb.Client = rdb.Init(&conf.RedisInstance)
 
 	etcdAddr := conf.Etcd.Endpoints
-	// trade_rpcx.InitConn(svrName, etcdAddr)
+	trade_rpcx.InitConn(svrName, etcdAddr)
 	member_rpcx.InitConn(svrName, etcdAddr)
-	// wallet_rpcx.InitConn(svrName, etcdAddr)
-	// kms_rpcx.InitConn(svrName, etcdAddr)
-	// im_rpcx.InitConn(svrName, etcdAddr)
+	wallet_rpcx.InitConn(svrName, etcdAddr)
+	kms_rpcx.InitConn(svrName, etcdAddr)
+	im_rpcx.InitConn(svrName, etcdAddr)
+	merchant_rpcx.InitConn(svrName, etcdAddr)
 
 	natsx.Init(svrName, &conf.Nats)
 
@@ -49,14 +56,24 @@ func entry(conf *config.BaseConf, svrConf *config.ServiceConfig) func() {
 	r := gin.New()
 	r.Use(
 		gin.Recovery(),
-		middleware.Cors(),
+		mw.Cors(),
+		mw.LimitBodySize(15<<20),
+		middleware.IPLimiter(),
 		otelgin.Middleware(svrName),
-		middleware.LoggerWithZap(zap.L()),
-		middleware.RequestHeaders(),
-		middleware.Response(),
-		middleware.GlobalLimiter(),
+		mw.RequestContext(),
+		mw.Response(),
+		mw.LoggerWithZap(zap.L()),
 	)
+	
+	host := strings.TrimPrefix(svrConf.Service.Http.Address, "0.0.0.0:")
+	if host == svrConf.Service.Http.Address {
+		host = svrConf.Service.Http.Address
+	}
+	docs.SwaggerInfo.Host = host
+	
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 	router.Init(r)
+
 	s := &http.Server{
 		Addr:           svrConf.Service.Http.Address,
 		Handler:        r,
@@ -68,7 +85,7 @@ func entry(conf *config.BaseConf, svrConf *config.ServiceConfig) func() {
 	go func() {
 		log.Printf("http listens on %s.", s.Addr)
 		if err := s.ListenAndServe(); err != nil {
-			zap.L().Error("http listen error", zap.Error(err))
+			log.Printf("http listen error: %v", err)
 		}
 	}()
 
@@ -79,12 +96,13 @@ func entry(conf *config.BaseConf, svrConf *config.ServiceConfig) func() {
 			zap.L().Error("http shutdown error", zap.Error(err))
 			_ = s.Close()
 		}
-		rdb.Close(rdb.Client)
+		rdb.Close()
 		trade_rpcx.CloseConn()
 		member_rpcx.CloseConn()
 		wallet_rpcx.CloseConn()
 		kms_rpcx.CloseConn()
 		im_rpcx.CloseConn()
+		merchant_rpcx.CloseConn()
 		natsx.Close()
 	}
 }

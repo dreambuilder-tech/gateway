@@ -1,9 +1,9 @@
 package chat
 
 import (
-	"gateway/internal/app"
 	"gateway/internal/common/auth"
 	"gateway/internal/common/ticket"
+	"wallet/common-lib/app"
 	"wallet/common-lib/rdb"
 	"wallet/common-lib/zapx"
 
@@ -28,5 +28,5 @@ func Ticket(c *gin.Context) {
 		app.InternalError(c, "set ticket error. try again")
 		return
 	}
-	app.SuccessData(c, &TicketResp{Ticket: t})
+	app.Result(c, &TicketResp{Ticket: t})
 }

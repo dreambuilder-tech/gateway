@@ -2,12 +2,11 @@ package ticket
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
 	"wallet/common-lib/env"
+	"wallet/common-lib/utils/radx"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -21,16 +20,8 @@ func websocketTicket(ticket string) string {
 	return fmt.Sprintf("app:websocket:ticket:%s", ticket)
 }
 
-func randStr() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
-}
-
 func Set(ctx context.Context, rds redis.UniversalClient, sid string) (string, error) {
-	str, err := randStr()
+	str, err := radx.SecureTicket()
 	if err != nil {
 		return "", fmt.Errorf("create a new ticket error: %s", err.Error())
 	}
